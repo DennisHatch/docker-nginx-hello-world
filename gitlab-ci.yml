@@ -1,0 +1,32 @@
+stages:
+  - deploy
+
+
+deploy:
+  stage: deploy
+  image: docker:24.0.5
+  services:
+    - docker:24.0.5-dind # Include docker as an enabled service
+  before_script:
+    - docker info
+  variables:
+    ecr_uri: '780718310965.dkr.ecr.eu-west-1.amazonaws.com/ftb-client'
+  script:
+    - apk add aws-cli
+    - apk add jq # Used to retrieve the revision number from AWS JSON body
+    - aws --version # Check if AWS is installed
+    - chmod +x ./cicd/generate-task-definition.sh # generate-task-definition allows us to make a JSON based on environment variables. Make the script executable
+    - sh ./cicd/generate-task-definition.sh
+    - cat task_definition.json # Check if the JSON is created
+    - aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin $ecr_uri # get AWS credentials
+    - docker build -t ftb-client-repository . # Build the docker
+    - docker tag ftb-client-repository:latest $ecr_uri/ftb-client-repository:dms-$CI_COMMIT_SHORT_SHA # Tag the docker with the commit hash
+    - docker push $ecr_uri/ftb-client-repository:dms-$CI_COMMIT_SHORT_SHA # Upload the image to our AWS ECR
+    - REGISTERED_TASK=$(aws ecs register-task-definition --cli-input-json file://task_definition.json) # Create a new task definition in ECR that uses the latest git hash as image. The response is a JSON body containing the revision number
+    - LATEST_REVISION=$(echo "$REGISTERED_TASK" | jq -r '.taskDefinition.revision') # Extract the revision number from the response above
+    - echo $LATEST_REVISION # Check
+    - sh ./cicd/wait-for-task-definition.sh $LATEST_REVISION
+    - aws ecs update-service --cluster ftb-client-cluster --service ftb-client-service --task-definition ftb-client-task-definition:$LATEST_REVISION --platform-version 1.4.0 # Update the current service to use the new revision number
+  dependencies:
+    - get_credentials
+    - get_task_role_arn
