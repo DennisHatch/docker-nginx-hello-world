@@ -11,7 +11,7 @@ deploy:
   before_script:
     - docker info
   variables:
-    ecr_uri: '780718310965.dkr.ecr.eu-west-1.amazonaws.com/ftb-client'
+    ecr_uri: '780718310965.dkr.ecr.eu-west-1.amazonaws.com'
   script:
     - apk add aws-cli
     - apk add jq # Used to retrieve the revision number from AWS JSON body
