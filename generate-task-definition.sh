@@ -13,7 +13,8 @@ cat <<EOF > task_definition.json
   "networkMode": "awsvpc",
   "cpu": "256",
   "family": "ftb-client-task-definition",
-  "taskRoleArn": "arn:aws:iam::780718310965:role/ftbClientECSTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::780718310965:role/ftbClientECSTaskRole",
+  "executionRoleArn": "arn:aws:iam::780718310965:role/ftbClientECSTaskExecutionRole",
   "memory": "512",
   "requiresCompatibilities": ["FARGATE"]
 }
