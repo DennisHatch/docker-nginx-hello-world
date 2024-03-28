@@ -1,7 +1,7 @@
 name: Release Build + Push to ECR
 on:
   push:
-    branches: [] # TODO: Enter branches that trigger CICD
+    branches: [template] # TODO: Enter branches that trigger CICD
 
 jobs:
   build:
