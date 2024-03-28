@@ -22,7 +22,7 @@ jobs:
           aws-region: eu-west-1
       - name: Download existing task definition
         run: | # TODO: Enter task definition name, defined in Terraform
-          aws ecs describe-task-definition --task-definition <task-definition-name>-${{ steps.extract_branch.outputs.branch }} --query taskDefinition > task-definition.json
+          aws ecs describe-task-definition --task-definition ftb-client-task-definition-${{ steps.extract_branch.outputs.branch }} --query taskDefinition > task-definition.json
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
@@ -31,7 +31,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}-${{ steps.extract_branch.outputs.branch }}
-          IMAGE_TAG: <prefix>-${{ github.sha }} # TODO: Add prefix for current project
+          IMAGE_TAG: ftb-${{ github.sha }} # TODO: Add prefix for current project
         run: |
           docker build --build-arg env=${{ steps.extract_branch.outputs.branch }} -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
@@ -41,14 +41,14 @@ jobs:
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: task-definition.json
-          container-name: <ecsContainerName>
+          container-name: ftb-client-container
           image: ${{ steps.build-image.outputs.image }}
       - name: Deploy Amazon ECS task definition # Change the current task definition to the new one using our updated task definition. This updated task definition points to our latest image in ECR.
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
-          service:  <ecsServiceName> # TODO: Enter service name, defined in Terraform
-          cluster:  <ecsContainerName> # TODO: Enter cluster name, defined in Terraform
+          service:  ftb-client-service # TODO: Enter service name, defined in Terraform
+          cluster:  ftb-client-container # TODO: Enter cluster name, defined in Terraform
           wait-for-service-stability: true
       - name: Log out of Amazon ECR
         if: always()
