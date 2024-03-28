@@ -1,0 +1,55 @@
+name: Release Build + Push to ECR
+on:
+  push:
+    branches: [] # TODO: Enter branches that trigger CICD
+
+jobs:
+  build:
+    name: Build Image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+      - name: Extract branch name # Helper step to extract current branch name
+        shell: bash
+        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+        id: extract_branch
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }} # TODO: Add secret to GitHub secrets
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }} # TODO: Add secret to GitHub secrets
+          aws-region: eu-west-1
+      - name: Download existing task definition
+        run: | # TODO: Enter task definition name, defined in Terraform
+          aws ecs describe-task-definition --task-definition <task-definition-name>-${{ steps.extract_branch.outputs.branch }} --query taskDefinition > task-definition.json
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}-${{ steps.extract_branch.outputs.branch }}
+          IMAGE_TAG: <prefix>-${{ github.sha }} # TODO: Add prefix for current project
+        run: |
+          docker build --build-arg env=${{ steps.extract_branch.outputs.branch }} -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+      - name: Fill in the new image ID in the Amazon ECS task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: <ecsContainerName>
+          image: ${{ steps.build-image.outputs.image }}
+      - name: Deploy Amazon ECS task definition # Change the current task definition to the new one using our updated task definition. This updated task definition points to our latest image in ECR.
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service:  <ecsServiceName> # TODO: Enter service name, defined in Terraform
+          cluster:  <ecsContainerName> # TODO: Enter cluster name, defined in Terraform
+          wait-for-service-stability: true
+      - name: Log out of Amazon ECR
+        if: always()
+        run: docker logout ${{ steps.login-ecr.outputs.registry }}

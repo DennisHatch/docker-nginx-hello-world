@@ -7,7 +7,16 @@ cat <<EOF > task_definition.json
       "essential": true,
       "image": "780718310965.dkr.ecr.eu-west-1.amazonaws.com/ftb-client:ftb-$CI_COMMIT_SHORT_SHA",
       "name": "ftb-client-container",
-      "portMappings": [{"containerPort": 80}]
+      "logConfiguration" : {
+        "logDriver" : "awslogs",
+        "options" : {
+          "awslogs-group" : "/ecs/ftb/client",
+          "awslogs-region" : "eu-west-1",
+          "awslogs-stream-prefix" : "/ecs/ftb/client"
+        }
+      },
+      "portMappings": [{"containerPort": 80,
+        "hostPort": 80}]
     }
   ],
   "networkMode": "awsvpc",
